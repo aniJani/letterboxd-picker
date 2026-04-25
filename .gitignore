@@ -1,0 +1,43 @@
+# dependencies
+node_modules/
+.pnp/
+.pnp.*
+
+# next.js
+.next/
+out/
+build/
+
+# vercel
+.vercel/
+
+# environment
+.env
+.env.local
+.env.*.local
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# testing
+coverage/
+.vitest-cache/
+playwright-report/
+test-results/
+
+# brainstorming companion (local mockups, not source)
+.superpowers/
