@@ -47,3 +47,6 @@ docs/superpowers/
 
 # typescript incremental build info
 *.tsbuildinfo
+
+# claude code per-developer settings
+.claude/
