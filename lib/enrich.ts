@@ -1,45 +1,24 @@
 import type { Film, FilmStub } from "@/lib/types";
 import type { TmdbMovie } from "@/lib/tmdb";
 import { searchByTitleYear, getMovie } from "@/lib/tmdb";
-import { scrapeFilmRating } from "@/lib/letterboxd";
-import {
-  ENRICH_CONCURRENCY,
-  FILM_PAGE_TIMEOUT_MS,
-  LETTERBOXD_BASE,
-  PROGRESS_THROTTLE,
-} from "@/lib/config";
+import { ENRICH_CONCURRENCY, LETTERBOXD_BASE, PROGRESS_THROTTLE } from "@/lib/config";
 
 export type EnrichDeps = {
   apiKey: string;
   tmdbSearch?: (title: string, year: number | null, apiKey: string) => Promise<number | null>;
   tmdbGet?: (id: number, apiKey: string) => Promise<TmdbMovie | null>;
-  ratingFetch?: (slug: string, signal?: AbortSignal) => Promise<number | null>;
+  // Optional injection used only by tests that want to override the rating
+  // (which now comes from TMDB itself, so the default has no I/O).
+  ratingOverride?: (slug: string, signal?: AbortSignal) => Promise<number | null>;
   onProgress?: (loaded: number, total: number) => void;
   concurrency?: number;
   progressEvery?: number;
   signal?: AbortSignal;
 };
 
-async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
-  return new Promise(resolve => {
-    const timer = setTimeout(() => resolve(null as T | null), ms);
-    p.then(
-      v => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      () => {
-        clearTimeout(timer);
-        resolve(null as T | null);
-      },
-    );
-  });
-}
-
 export async function enrich(stubs: FilmStub[], deps: EnrichDeps): Promise<Film[]> {
   const search = deps.tmdbSearch ?? searchByTitleYear;
   const fetchMovie = deps.tmdbGet ?? getMovie;
-  const fetchRating = deps.ratingFetch ?? scrapeFilmRating;
   const concurrency = deps.concurrency ?? ENRICH_CONCURRENCY;
   const progressEvery = deps.progressEvery ?? PROGRESS_THROTTLE;
 
@@ -75,10 +54,10 @@ export async function enrich(stubs: FilmStub[], deps: EnrichDeps): Promise<Film[
         emitProgress();
         continue;
       }
-      const rating = await withTimeout(
-        fetchRating(stub.slug, deps.signal),
-        FILM_PAGE_TIMEOUT_MS,
-      );
+
+      const rating = deps.ratingOverride
+        ? await deps.ratingOverride(stub.slug, deps.signal)
+        : movie.rating;
 
       results[i] = {
         slug: stub.slug,

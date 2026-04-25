@@ -13,6 +13,8 @@ type TmdbMovieResponse = {
   runtime?: number | null;
   overview?: string;
   poster_path?: string | null;
+  vote_average?: number | null;
+  vote_count?: number | null;
   genres?: Array<{ id: number; name: string }>;
   credits?: {
     crew?: Array<{ job: string; name: string }>;
@@ -28,6 +30,9 @@ export type TmdbMovie = {
   genres: string[];
   posterPath: string | null;
   synopsis: string;
+  // TMDB community rating, normalised from 10-scale to 5-scale.
+  // Null when the film has no votes — treat as "unrated".
+  rating: number | null;
 };
 
 async function tmdbFetch(
@@ -94,6 +99,12 @@ export async function getMovie(
 
   const director = data.credits?.crew?.find(c => c.job === "Director")?.name ?? "";
 
+  // TMDB rates 0–10 with vote_count signalling sample size.
+  // 0 votes / 0 average → unrated.
+  const voteAverage = typeof data.vote_average === "number" ? data.vote_average : 0;
+  const voteCount = typeof data.vote_count === "number" ? data.vote_count : 0;
+  const rating = voteCount > 0 && voteAverage > 0 ? voteAverage / 2 : null;
+
   return {
     tmdbId: data.id,
     title: data.title,
@@ -103,5 +114,6 @@ export async function getMovie(
     genres: (data.genres ?? []).map(g => g.name),
     posterPath: data.poster_path ?? null,
     synopsis: data.overview ?? "",
+    rating,
   };
 }

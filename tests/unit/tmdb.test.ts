@@ -48,6 +48,16 @@ describe("getMovie", () => {
     expect(result!.director).toBe("John Carpenter");
     expect(result!.genres).toContain("Horror");
     expect(result!.posterPath).toBe("/tzGY49eseSE9fAfPYnoeKMSc8aH.jpg");
+    expect(result!.rating).toBeCloseTo(4.1, 5); // 8.2/2 = 4.1
+  });
+
+  it("returns null rating when vote_count is 0", async () => {
+    server.use(
+      http.get("https://api.themoviedb.org/3/movie/1091", () =>
+        HttpResponse.json({ ...fixture("movie-the-thing.json"), vote_count: 0, vote_average: 0 })),
+    );
+    const result = await getMovie(1091, "fake-key");
+    expect(result!.rating).toBeNull();
   });
 
   it("returns null on 404", async () => {
