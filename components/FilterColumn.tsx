@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 export type FilterColumnProps = {
   label: string;
@@ -18,18 +18,30 @@ export function FilterColumn({ label, options, value, onChange }: FilterColumnPr
     if (target !== undefined && target !== value) onChange(target);
   }, [idx, options, onChange, value]);
 
+  // React 19 attaches wheel listeners as passive, so preventDefault is a no-op
+  // when set via JSX. Attach a non-passive native listener to actually trap
+  // page scroll while the user spins the column.
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      advance(e.deltaY > 0 ? 1 : -1);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [advance]);
+
   return (
     <div
+      ref={ref}
       role="listbox"
       tabIndex={0}
       aria-label={label}
       onKeyDown={(e) => {
         if (e.key === "ArrowDown" || e.key === "ArrowRight") { e.preventDefault(); advance(1); }
         if (e.key === "ArrowUp" || e.key === "ArrowLeft") { e.preventDefault(); advance(-1); }
-      }}
-      onWheel={(e) => {
-        e.preventDefault();
-        advance(e.deltaY > 0 ? 1 : -1);
       }}
       className="flex flex-col items-center gap-1 select-none focus:outline-none focus:ring-2 focus:ring-amber"
     >
