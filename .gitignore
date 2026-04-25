@@ -41,3 +41,9 @@ test-results/
 
 # brainstorming companion (local mockups, not source)
 .superpowers/
+
+# design specs and implementation plans (kept local, not source)
+docs/superpowers/
+
+# typescript incremental build info
+*.tsbuildinfo
