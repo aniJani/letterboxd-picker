@@ -1,6 +1,6 @@
 export const CACHE_VERSION = "v1";
 export const CACHE_TTL_SECONDS = 60 * 60 * 6; // 6 hours
-export const ENRICH_CONCURRENCY = 10;
+export const ENRICH_CONCURRENCY = 20;
 export const FILM_PAGE_TIMEOUT_MS = 5_000;
 export const PAGINATION_DELAY_MS = 200;
 export const RETRY_BACKOFF_MS = 500;

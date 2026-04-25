@@ -9,6 +9,7 @@ import {
 export type WatchlistPageResult = {
   films: FilmStub[];
   hasNextPage: boolean;
+  totalPages: number | null;
 };
 
 function extractYearFromDisplayName(name: string | undefined): number | null {
@@ -56,7 +57,19 @@ export function parseWatchlistPage(html: string): WatchlistPageResult {
   const hasNextPage =
     $("a.next").length > 0 || $(".paginate-nextprev .next").length > 0;
 
-  return { films, hasNextPage };
+  // Read every numbered pagination link and take the largest — that's the
+  // last page. Lets us fan out the rest in parallel instead of paginating
+  // serially.
+  let totalPages: number | null = null;
+  $(".paginate-page a, .paginate-page").each((_, el) => {
+    const text = $(el).text().trim();
+    const n = parseInt(text, 10);
+    if (Number.isFinite(n) && (totalPages === null || n > totalPages)) {
+      totalPages = n;
+    }
+  });
+
+  return { films, hasNextPage, totalPages };
 }
 
 export function parseFilmRating(html: string): number | null {
@@ -143,56 +156,109 @@ async function fetchPage(
   }
 }
 
+const PAGINATION_PARALLEL = 5;
+
+function pageUrl(user: string, page: number): string {
+  const u = encodeURIComponent(user);
+  return page === 1
+    ? `${LETTERBOXD_BASE}/${u}/watchlist/`
+    : `${LETTERBOXD_BASE}/${u}/watchlist/page/${page}/`;
+}
+
+async function fetchAndCheck(
+  url: string,
+  signal?: AbortSignal,
+): Promise<{ status: number; html: string } | { error: ErrorCode }> {
+  let res;
+  try {
+    res = await fetchPage(url, signal);
+  } catch {
+    return { error: "NETWORK" };
+  }
+  if (res.status === 429) return { error: "RATE_LIMIT" };
+  if (res.status === 403) return { error: "PRIVATE" };
+  if (res.status === 404) return { error: "NOT_FOUND" };
+  if (res.status >= 500) {
+    await sleep(RETRY_BACKOFF_MS);
+    try {
+      res = await fetchPage(url, signal);
+    } catch {
+      return { error: "NETWORK" };
+    }
+    if (res.status >= 500) return { error: "NETWORK" };
+  }
+  return res;
+}
+
 export async function scrapeWatchlist(
   user: string,
   signal?: AbortSignal,
 ): Promise<ScrapeResult<FilmStub>> {
-  const u = encodeURIComponent(user);
-  let page = 1;
-  const films: FilmStub[] = [];
+  // Page 1: fetch synchronously to learn the total page count and detect errors.
+  const t0 = Date.now();
+  const first = await fetchAndCheck(pageUrl(user, 1), signal);
+  if ("error" in first) {
+    console.error(`[scrape] page 1 failed: ${first.error}`);
+    return { kind: "error", code: first.error };
+  }
+  console.log(`[scrape] page 1 fetched in ${Date.now() - t0}ms, status=${first.status}`);
 
-  while (true) {
-    const url =
-      page === 1
-        ? `${LETTERBOXD_BASE}/${u}/watchlist/`
-        : `${LETTERBOXD_BASE}/${u}/watchlist/page/${page}/`;
-
-    let res;
-    try {
-      res = await fetchPage(url, signal);
-    } catch {
-      return { kind: "error", code: "NETWORK" };
-    }
-
-    if (res.status === 404) {
-      if (!parseUserExists(res.html)) return { kind: "error", code: "NOT_FOUND" };
-      return { kind: "error", code: "NOT_FOUND" };
-    }
-    if (res.status === 429) return { kind: "error", code: "RATE_LIMIT" };
-    if (res.status === 403) return { kind: "error", code: "PRIVATE" };
-    if (res.status >= 500 && res.status < 600) {
-      await sleep(RETRY_BACKOFF_MS);
-      try {
-        res = await fetchPage(url, signal);
-      } catch {
-        return { kind: "error", code: "NETWORK" };
-      }
-      if (res.status >= 500) return { kind: "error", code: "NETWORK" };
-    }
-
-    if (isPrivateWatchlist(res.html)) {
-      return { kind: "error", code: "PRIVATE" };
-    }
-
-    const parsed = parseWatchlistPage(res.html);
-    films.push(...parsed.films);
-
-    if (!parsed.hasNextPage) break;
-    page += 1;
-    await sleep(PAGINATION_DELAY_MS);
-    if (signal?.aborted) return { kind: "error", code: "NETWORK" };
+  if (isPrivateWatchlist(first.html)) return { kind: "error", code: "PRIVATE" };
+  if (first.status === 404 || !parseUserExists(first.html)) {
+    return { kind: "error", code: "NOT_FOUND" };
   }
 
+  const firstParsed = parseWatchlistPage(first.html);
+  console.log(`[scrape] page 1 has ${firstParsed.films.length} films, totalPages=${firstParsed.totalPages}, hasNext=${firstParsed.hasNextPage}`);
+
+  if (firstParsed.films.length === 0) return { kind: "error", code: "EMPTY" };
+
+  const films: FilmStub[] = [...firstParsed.films];
+  const totalPages = firstParsed.totalPages ?? 1;
+
+  // Fan out pages 2..N in parallel batches.
+  if (totalPages > 1) {
+    const remaining: number[] = [];
+    for (let p = 2; p <= totalPages; p++) remaining.push(p);
+
+    const batchT0 = Date.now();
+    const pageResults: Array<FilmStub[] | null> = new Array(totalPages + 1).fill(null);
+
+    let cursor = 0;
+    async function worker() {
+      while (cursor < remaining.length) {
+        if (signal?.aborted) return;
+        const idx = cursor++;
+        const p = remaining[idx]!;
+        const r = await fetchAndCheck(pageUrl(user, p), signal);
+        if ("error" in r) {
+          console.warn(`[scrape] page ${p} skipped: ${r.error}`);
+          continue;
+        }
+        const parsed = parseWatchlistPage(r.html);
+        if (parsed.films.length === 0) {
+          // Past the end (Letterboxd serves empty 80KB pages past last). Skip.
+          continue;
+        }
+        pageResults[p] = parsed.films;
+      }
+    }
+
+    await Promise.all(
+      Array.from({ length: Math.min(PAGINATION_PARALLEL, remaining.length) }, () => worker()),
+    );
+
+    if (signal?.aborted) return { kind: "error", code: "NETWORK" };
+
+    // Reassemble pages in order.
+    for (let p = 2; p <= totalPages; p++) {
+      const got = pageResults[p];
+      if (got) films.push(...got);
+    }
+    console.log(`[scrape] pages 2..${totalPages} fetched in ${Date.now() - batchT0}ms (${PAGINATION_PARALLEL}-way parallel)`);
+  }
+
+  console.log(`[scrape] done — ${totalPages} pages, ${films.length} films`);
   if (films.length === 0) return { kind: "error", code: "EMPTY" };
   return { kind: "ok", films };
 }

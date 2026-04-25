@@ -6,7 +6,13 @@ import { scrapeWatchlist } from "@/lib/letterboxd";
 const page1 = `<html><body><ul class="poster-list">
   <li class="poster-container"><div data-film-slug="a" data-film-name="A" data-film-release-year="2001"></div></li>
   <li class="poster-container"><div data-film-slug="b" data-film-name="B" data-film-release-year="2002"></div></li>
-</ul><a class="next" href="/foo/watchlist/page/2/">Next</a></body></html>`;
+</ul>
+<div class="paginate-pages">
+  <li class="paginate-page paginate-current"><a>1</a></li>
+  <li class="paginate-page"><a href="/foo/watchlist/page/2/">2</a></li>
+</div>
+<a class="next" href="/foo/watchlist/page/2/">Next</a>
+</body></html>`;
 
 const page2 = `<html><body><ul class="poster-list">
   <li class="poster-container"><div data-film-slug="c" data-film-name="C" data-film-release-year="2003"></div></li>
