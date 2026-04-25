@@ -98,18 +98,67 @@ export async function GET(req: Request): Promise<Response> {
 
     yield { type: "paginated", total: scrape.films.length };
 
+    // Async channel: progress events from `enrich`'s onProgress callback get
+    // yielded to the client as soon as they arrive, instead of being buffered
+    // until enrich completes.
     const queue: StreamEvent[] = [];
+    let waiter: ((v: IteratorResult<StreamEvent>) => void) | null = null;
+    let closed = false;
+    const push = (e: StreamEvent) => {
+      if (waiter) {
+        const w = waiter;
+        waiter = null;
+        w({ value: e, done: false });
+      } else {
+        queue.push(e);
+      }
+    };
+    const close = () => {
+      closed = true;
+      if (waiter) {
+        const w = waiter;
+        waiter = null;
+        w({ value: undefined as unknown as StreamEvent, done: true });
+      }
+    };
+    const next = (): Promise<IteratorResult<StreamEvent>> => {
+      if (queue.length > 0) {
+        return Promise.resolve({ value: queue.shift()!, done: false });
+      }
+      if (closed) {
+        return Promise.resolve({ value: undefined as unknown as StreamEvent, done: true });
+      }
+      return new Promise(resolve => { waiter = resolve; });
+    };
+
     console.log(`[route] enriching ${scrape.films.length} stubs...`);
-    const films: Film[] = await enrich(scrape.films, {
+    const enrichPromise = enrich(scrape.films, {
       apiKey,
-      onProgress: (loaded, total) => queue.push({ type: "progress", loaded, total }),
+      onProgress: (loaded, total) => push({ type: "progress", loaded, total }),
       signal,
-    });
-    console.log(`[route] enrich done, ${films.length} films survived (queue has ${queue.length} progress events)`);
+    })
+      .then(films => {
+        console.log(`[route] enrich done, ${films.length} films survived`);
+        push({ type: "done", films });
+        close();
+        return films;
+      })
+      .catch(err => {
+        console.error("[route] enrich failed:", err);
+        push({ type: "error", code: "NETWORK" });
+        close();
+        return [] as Film[];
+      });
 
-    for (const event of queue) yield event;
+    while (true) {
+      const r = await next();
+      if (r.done) break;
+      yield r.value;
+    }
 
-    yield { type: "done", films };
-    await writeCachedWatchlist(user, films, scrape.films.length);
+    const films = await enrichPromise;
+    if (films.length > 0) {
+      await writeCachedWatchlist(user, films, scrape.films.length);
+    }
   });
 }
