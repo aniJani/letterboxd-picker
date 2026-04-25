@@ -1,0 +1,19 @@
+{
+  "id": 1091,
+  "title": "The Thing",
+  "release_date": "1982-06-25",
+  "runtime": 109,
+  "overview": "Antarctic researchers...",
+  "poster_path": "/tzGY49eseSE9fAfPYnoeKMSc8aH.jpg",
+  "genres": [
+    {"id": 27, "name": "Horror"},
+    {"id": 9648, "name": "Mystery"},
+    {"id": 878, "name": "Science Fiction"}
+  ],
+  "credits": {
+    "crew": [
+      {"job": "Director", "name": "John Carpenter"},
+      {"job": "Producer", "name": "David Foster"}
+    ]
+  }
+}
