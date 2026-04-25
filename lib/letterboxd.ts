@@ -1,5 +1,10 @@
 import * as cheerio from "cheerio";
-import type { FilmStub } from "@/lib/types";
+import type { ErrorCode, FilmStub } from "@/lib/types";
+import {
+  LETTERBOXD_BASE,
+  PAGINATION_DELAY_MS,
+  RETRY_BACKOFF_MS,
+} from "@/lib/config";
 
 export type WatchlistPageResult = {
   films: FilmStub[];
@@ -98,4 +103,91 @@ export function isPrivateWatchlist(html: string): boolean {
     lower.includes("profile is private") ||
     lower.includes("watchlist is private")
   );
+}
+
+export type ScrapeResult<T> =
+  | { kind: "ok"; films: T[] }
+  | { kind: "error"; code: ErrorCode; message?: string };
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+async function fetchPage(
+  url: string,
+  signal?: AbortSignal,
+): Promise<{ status: number; html: string }> {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "letterboxd-picker/1.0 (+https://github.com/yourname)",
+    },
+    signal,
+  });
+  const html = await res.text();
+  return { status: res.status, html };
+}
+
+export async function scrapeWatchlist(
+  user: string,
+  signal?: AbortSignal,
+): Promise<ScrapeResult<FilmStub>> {
+  const u = encodeURIComponent(user);
+  let page = 1;
+  const films: FilmStub[] = [];
+
+  while (true) {
+    const url =
+      page === 1
+        ? `${LETTERBOXD_BASE}/${u}/watchlist/`
+        : `${LETTERBOXD_BASE}/${u}/watchlist/page/${page}/`;
+
+    let res;
+    try {
+      res = await fetchPage(url, signal);
+    } catch {
+      return { kind: "error", code: "NETWORK" };
+    }
+
+    if (res.status === 404) {
+      if (!parseUserExists(res.html)) return { kind: "error", code: "NOT_FOUND" };
+      return { kind: "error", code: "NOT_FOUND" };
+    }
+    if (res.status === 429) return { kind: "error", code: "RATE_LIMIT" };
+    if (res.status === 403) return { kind: "error", code: "PRIVATE" };
+    if (res.status >= 500 && res.status < 600) {
+      await sleep(RETRY_BACKOFF_MS);
+      try {
+        res = await fetchPage(url, signal);
+      } catch {
+        return { kind: "error", code: "NETWORK" };
+      }
+      if (res.status >= 500) return { kind: "error", code: "NETWORK" };
+    }
+
+    if (isPrivateWatchlist(res.html)) {
+      return { kind: "error", code: "PRIVATE" };
+    }
+
+    const parsed = parseWatchlistPage(res.html);
+    films.push(...parsed.films);
+
+    if (!parsed.hasNextPage) break;
+    page += 1;
+    await sleep(PAGINATION_DELAY_MS);
+  }
+
+  if (films.length === 0) return { kind: "error", code: "EMPTY" };
+  return { kind: "ok", films };
+}
+
+export async function scrapeFilmRating(
+  slug: string,
+  signal?: AbortSignal,
+): Promise<number | null> {
+  const url = `${LETTERBOXD_BASE}/film/${slug}/`;
+  try {
+    const res = await fetchPage(url, signal);
+    if (res.status >= 400) return null;
+    return parseFilmRating(res.html);
+  } catch {
+    return null;
+  }
 }
