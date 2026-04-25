@@ -89,7 +89,7 @@ export async function getMovie(
   if (!data.id) return null;
 
   const year = data.release_date ? parseInt(data.release_date.slice(0, 4), 10) : NaN;
-  if (!Number.isFinite(year)) return null;
+  if (!Number.isFinite(year) || year < 1888 || year > 2100) return null;
   if (typeof data.runtime !== "number" || data.runtime <= 0) return null;
 
   const director = data.credits?.crew?.find(c => c.job === "Director")?.name ?? "";
