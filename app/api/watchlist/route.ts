@@ -18,14 +18,31 @@ function streamResponse(generator: () => AsyncIterable<StreamEvent>): Response {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
+      let count = 0;
+      let closed = false;
+      const safeEnqueue = (event: StreamEvent) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(ndjson(event)));
+        } catch {
+          // Client disconnected — controller is already closed.
+          closed = true;
+        }
+      };
       try {
         for await (const event of generator()) {
-          controller.enqueue(encoder.encode(ndjson(event)));
+          if (closed) break;
+          count += 1;
+          console.log(`[route] enqueue #${count}: ${event.type}${event.type === "done" ? ` (${event.films.length} films)` : event.type === "paginated" ? ` total=${event.total}` : event.type === "progress" ? ` ${event.loaded}/${event.total}` : event.type === "error" ? ` code=${event.code}` : ""}`);
+          safeEnqueue(event);
         }
-      } catch {
-        controller.enqueue(encoder.encode(ndjson({ type: "error", code: "NETWORK" })));
+        console.log(`[route] generator completed, ${count} events`);
+      } catch (err) {
+        console.error("[route] generator threw:", err);
+        safeEnqueue({ type: "error", code: "NETWORK" });
       } finally {
-        controller.close();
+        closed = true;
+        try { controller.close(); } catch {}
       }
     },
   });
@@ -58,17 +75,22 @@ export async function GET(req: Request): Promise<Response> {
   const signal = req.signal;
 
   return streamResponse(async function* () {
+    console.log(`[route] start user=${user} refresh=${refresh}`);
     if (!refresh) {
       const cached = await readCachedWatchlist(user);
       if (cached) {
+        console.log(`[route] cache HIT, ${cached.films.length} films`);
         yield { type: "paginated", total: cached.films.length };
         yield { type: "progress", loaded: cached.films.length, total: cached.films.length };
         yield { type: "done", films: cached.films };
         return;
       }
+      console.log(`[route] cache MISS`);
     }
 
+    console.log(`[route] scraping...`);
     const scrape = await scrapeWatchlist(user, signal);
+    console.log(`[route] scrape result kind=${scrape.kind}${scrape.kind === "ok" ? ` films=${scrape.films.length}` : ` code=${scrape.code}`}`);
     if (scrape.kind === "error") {
       yield { type: "error", code: scrape.code };
       return;
@@ -77,11 +99,13 @@ export async function GET(req: Request): Promise<Response> {
     yield { type: "paginated", total: scrape.films.length };
 
     const queue: StreamEvent[] = [];
+    console.log(`[route] enriching ${scrape.films.length} stubs...`);
     const films: Film[] = await enrich(scrape.films, {
       apiKey,
       onProgress: (loaded, total) => queue.push({ type: "progress", loaded, total }),
       signal,
     });
+    console.log(`[route] enrich done, ${films.length} films survived (queue has ${queue.length} progress events)`);
 
     for (const event of queue) yield event;
 

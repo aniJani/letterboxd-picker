@@ -111,18 +111,36 @@ export type ScrapeResult<T> =
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+const PAGE_FETCH_TIMEOUT_MS = 12_000;
+
 async function fetchPage(
   url: string,
   signal?: AbortSignal,
 ): Promise<{ status: number; html: string }> {
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": "letterboxd-picker/1.0 (+https://github.com/yourname)",
-    },
-    signal,
-  });
-  const html = await res.text();
-  return { status: res.status, html };
+  // Per-page hard timeout. Letterboxd has been observed to slow-serve
+  // (14+ minutes) when an IP is throttled; without this the request
+  // hangs indefinitely.
+  const timeoutCtrl = new AbortController();
+  const timer = setTimeout(() => timeoutCtrl.abort(), PAGE_FETCH_TIMEOUT_MS);
+  const combinedSignal = signal
+    ? AbortSignal.any([signal, timeoutCtrl.signal])
+    : timeoutCtrl.signal;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        // Browser-like UA — `letterboxd-picker/1.0` triggers throttling.
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      signal: combinedSignal,
+    });
+    const html = await res.text();
+    return { status: res.status, html };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function scrapeWatchlist(
