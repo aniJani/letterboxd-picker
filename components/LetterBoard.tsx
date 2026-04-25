@@ -93,7 +93,6 @@ function ResultMode({ film }: ResultModeProps) {
   const [shownLetters, setShownLetters] = useState(0);
 
   useEffect(() => {
-    setShownLetters(0);
     const reduce =
       typeof window !== "undefined" &&
       typeof window.matchMedia === "function" &&
@@ -136,5 +135,5 @@ function ResultMode({ film }: ResultModeProps) {
 
 export function LetterBoard(props: Props) {
   if (props.mode === "filter") return <FilterMode {...props} />;
-  return <ResultMode {...props} />;
+  return <ResultMode key={props.film.slug} {...props} />;
 }
