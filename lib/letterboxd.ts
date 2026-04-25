@@ -172,6 +172,7 @@ export async function scrapeWatchlist(
     if (!parsed.hasNextPage) break;
     page += 1;
     await sleep(PAGINATION_DELAY_MS);
+    if (signal?.aborted) return { kind: "error", code: "NETWORK" };
   }
 
   if (films.length === 0) return { kind: "error", code: "EMPTY" };

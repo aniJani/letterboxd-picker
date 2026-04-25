@@ -55,6 +55,8 @@ export async function GET(req: Request): Promise<Response> {
     return NextResponse.json({ error: "server misconfigured" }, { status: 500 });
   }
 
+  const signal = req.signal;
+
   return streamResponse(async function* () {
     if (!refresh) {
       const cached = await readCachedWatchlist(user);
@@ -66,7 +68,7 @@ export async function GET(req: Request): Promise<Response> {
       }
     }
 
-    const scrape = await scrapeWatchlist(user);
+    const scrape = await scrapeWatchlist(user, signal);
     if (scrape.kind === "error") {
       yield { type: "error", code: scrape.code };
       return;
@@ -78,6 +80,7 @@ export async function GET(req: Request): Promise<Response> {
     const films: Film[] = await enrich(scrape.films, {
       apiKey,
       onProgress: (loaded, total) => queue.push({ type: "progress", loaded, total }),
+      signal,
     });
 
     for (const event of queue) yield event;

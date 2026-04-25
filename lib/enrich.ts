@@ -58,6 +58,7 @@ export async function enrich(stubs: FilmStub[], deps: EnrichDeps): Promise<Film[
 
   async function worker() {
     while (indices.length > 0) {
+      if (deps.signal?.aborted) return;
       const i = indices.shift();
       if (i === undefined) return;
       const stub = stubs[i]!;
