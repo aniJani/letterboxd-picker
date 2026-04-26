@@ -167,9 +167,9 @@ export function PageClient() {
         </div>
       )}
       <main
-        className={`max-w-[720px] mx-auto px-5 sm:px-10 py-10 min-h-screen ${
+        className={`max-w-[720px] mx-auto px-5 sm:px-10 py-10 min-h-screen sm:my-6 sm:min-h-[calc(100vh-3rem)] ${
           backdrop
-            ? "bg-[var(--color-paper)]/95 sm:my-6 sm:rounded-sm sm:shadow-[0_30px_80px_rgba(0,0,0,0.4)]"
+            ? "bg-[var(--color-paper)]/95 sm:rounded-sm sm:shadow-[0_30px_80px_rgba(0,0,0,0.4)]"
             : ""
         }`}
         style={
