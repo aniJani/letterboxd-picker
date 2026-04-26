@@ -137,9 +137,48 @@ export function PageClient() {
     progressTone = "muted";
   }
 
+  const backdrop =
+    state.kind === "result" && state.picked.backdropPath
+      ? `https://image.tmdb.org/t/p/w1280${state.picked.backdropPath}`
+      : null;
+
   return (
-    <main className="max-w-[720px] mx-auto px-5 sm:px-10 py-10 min-h-screen">
-      <Header variant={isResult ? "result" : "idle"} />
+    <>
+      {backdrop && (
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 -z-10 transition-opacity duration-700"
+          style={{
+            backgroundImage: `url(${backdrop})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+          }}
+        >
+          <div
+            className="absolute inset-0"
+            style={{
+              backdropFilter: "blur(18px)",
+              WebkitBackdropFilter: "blur(18px)",
+              background:
+                "linear-gradient(180deg, rgba(15,12,8,0.65) 0%, rgba(15,12,8,0.78) 50%, rgba(15,12,8,0.92) 100%)",
+            }}
+          />
+        </div>
+      )}
+      <main
+        className={`max-w-[720px] mx-auto px-5 sm:px-10 py-10 min-h-screen ${
+          backdrop
+            ? "bg-[var(--color-paper)]/95 sm:my-6 sm:rounded-sm sm:shadow-[0_30px_80px_rgba(0,0,0,0.4)]"
+            : ""
+        }`}
+        style={
+          backdrop
+            ? { backgroundColor: "rgba(239,236,228,0.97)" }
+            : undefined
+        }
+      >
+        <Header variant={isResult ? "result" : "idle"} />
 
       {state.kind !== "result" && (
         <div className="flex items-end gap-3 mb-2">
@@ -213,6 +252,7 @@ export function PageClient() {
       )}
 
       <Colophon />
-    </main>
+      </main>
+    </>
   );
 }
