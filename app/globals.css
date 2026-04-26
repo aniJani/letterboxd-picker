@@ -21,14 +21,26 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Canvas fallback. The fixed backdrop layer (in result mode) sits on top
+     of this; in non-result modes this is what shows on either side of the
+     centered <main> card. */
+  background: var(--color-paper);
+}
+
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-display);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+body {
+  /* Transparent so the fixed backdrop layer is visible on the sides of the
+     centered card. */
+  background: transparent;
 }
 
 button {
