@@ -13,6 +13,7 @@ describe("FilmSchema", () => {
       runtime: 109,
       director: "John Carpenter",
       posterPath: "/abc.jpg",
+      backdropPath: "/back.jpg",
       synopsis: "Antarctic researchers...",
       letterboxdUrl: "https://letterboxd.com/film/the-thing/",
     };
@@ -30,6 +31,7 @@ describe("FilmSchema", () => {
       runtime: 90,
       director: "Unknown",
       posterPath: null,
+      backdropPath: null,
       synopsis: "",
       letterboxdUrl: "https://letterboxd.com/film/obscure/",
     };

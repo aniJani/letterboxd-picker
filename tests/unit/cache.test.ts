@@ -5,7 +5,7 @@ import type { Film } from "@/lib/types";
 const film: Film = {
   slug: "the-thing", title: "The Thing", year: 1982, lbxRating: 4.1,
   tmdbId: 1091, genres: ["Horror"], runtime: 109, director: "Carpenter",
-  posterPath: "/x.jpg", synopsis: "...", letterboxdUrl: "https://letterboxd.com/film/the-thing/",
+  posterPath: "/x.jpg", backdropPath: "/b.jpg", synopsis: "...", letterboxdUrl: "https://letterboxd.com/film/the-thing/",
 };
 
 const mockGet = vi.fn();

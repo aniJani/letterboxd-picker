@@ -10,6 +10,7 @@ export const FilmSchema = z.object({
   runtime: z.number().int().positive(),
   director: z.string(),
   posterPath: z.string().nullable(),
+  backdropPath: z.string().nullable(),
   synopsis: z.string(),
   letterboxdUrl: z.string().url(),
 });

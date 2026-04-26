@@ -18,6 +18,7 @@ const fakeTmdb = (overrides: Partial<TmdbMovie>): TmdbMovie => ({
   director: "Dir",
   genres: ["Drama"],
   posterPath: "/x.jpg",
+  backdropPath: "/b.jpg",
   synopsis: "Plot.",
   rating: 4.0,
   ...overrides,

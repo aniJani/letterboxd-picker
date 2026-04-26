@@ -33,7 +33,7 @@ describe("LetterBoard — filter mode", () => {
 describe("LetterBoard — result mode", () => {
   const film = {
     slug: "the-thing", title: "The Thing", year: 1982, lbxRating: 4.1, tmdbId: 1091,
-    genres: ["Horror"], runtime: 109, director: "John Carpenter", posterPath: "/x.jpg",
+    genres: ["Horror"], runtime: 109, director: "John Carpenter", posterPath: "/x.jpg", backdropPath: "/b.jpg",
     synopsis: "...", letterboxdUrl: "https://letterboxd.com/film/the-thing/",
   };
 

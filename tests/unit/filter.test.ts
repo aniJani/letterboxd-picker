@@ -13,6 +13,7 @@ const film = (overrides: Partial<Film>): Film => ({
   runtime: 100,
   director: "Dir",
   posterPath: null,
+  backdropPath: null,
   synopsis: "",
   letterboxdUrl: "https://letterboxd.com/film/x/",
   ...overrides,

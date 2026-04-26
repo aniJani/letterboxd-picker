@@ -87,6 +87,8 @@ function FilterMode({ state, options, onChange }: FilterModeProps) {
   );
 }
 
+const TMDB_BACKDROP = "https://image.tmdb.org/t/p/w1280";
+
 function ResultMode({ film }: ResultModeProps) {
   const surname = film.director.split(" ").pop()?.toUpperCase() ?? "";
   const titleLetters = useMemo(() => film.title.toUpperCase().split(""), [film.title]);
@@ -112,9 +114,29 @@ function ResultMode({ film }: ResultModeProps) {
 
   const rating = film.lbxRating;
   const stars = rating !== null ? "★".repeat(Math.round(rating)) + "☆".repeat(5 - Math.round(rating)) : "";
+  const backdrop = film.backdropPath ? TMDB_BACKDROP + film.backdropPath : null;
 
   return (
     <FrameWrapper>
+      {backdrop && (
+        <div className="relative -mx-6 -mt-6 mb-3 h-[180px] sm:h-[220px] overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={backdrop}
+            alt=""
+            aria-hidden="true"
+            className="w-full h-full object-cover opacity-70"
+            loading="lazy"
+          />
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(12,12,12,0.15) 0%, rgba(12,12,12,0.55) 60%, rgba(12,12,12,0.95) 100%)",
+            }}
+          />
+        </div>
+      )}
       <div className="flex justify-between font-mono text-[10px] tracking-[0.3em] text-[var(--color-muted)] mb-3 px-1">
         <span>FEATURE PRESENTATION</span>
         {rating !== null && <span>★ {rating.toFixed(1)} / 5</span>}

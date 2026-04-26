@@ -13,6 +13,7 @@ type TmdbMovieResponse = {
   runtime?: number | null;
   overview?: string;
   poster_path?: string | null;
+  backdrop_path?: string | null;
   vote_average?: number | null;
   vote_count?: number | null;
   genres?: Array<{ id: number; name: string }>;
@@ -29,6 +30,7 @@ export type TmdbMovie = {
   director: string;
   genres: string[];
   posterPath: string | null;
+  backdropPath: string | null;
   synopsis: string;
   // TMDB community rating, normalised from 10-scale to 5-scale.
   // Null when the film has no votes — treat as "unrated".
@@ -44,16 +46,25 @@ async function tmdbFetch(
   url.searchParams.set("api_key", apiKey);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // Up to 3 attempts: original + retry on 5xx, network error, OR 429.
+  // 429 honours the Retry-After header (TMDB returns seconds).
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
       const res = await fetch(url.toString());
-      if (res.status >= 500 && attempt === 0) {
+      if (res.status === 429 && attempt < MAX_ATTEMPTS - 1) {
+        const retryAfter = parseInt(res.headers.get("retry-after") ?? "1", 10);
+        const wait = Number.isFinite(retryAfter) ? Math.min(retryAfter * 1000, 5_000) : RETRY_BACKOFF_MS;
+        await sleep(wait);
+        continue;
+      }
+      if (res.status >= 500 && attempt < MAX_ATTEMPTS - 1) {
         await sleep(RETRY_BACKOFF_MS);
         continue;
       }
       return res;
     } catch {
-      if (attempt === 0) {
+      if (attempt < MAX_ATTEMPTS - 1) {
         await sleep(RETRY_BACKOFF_MS);
         continue;
       }
@@ -113,6 +124,7 @@ export async function getMovie(
     director,
     genres: (data.genres ?? []).map(g => g.name),
     posterPath: data.poster_path ?? null,
+    backdropPath: data.backdrop_path ?? null,
     synopsis: data.overview ?? "",
     rating,
   };

@@ -69,6 +69,7 @@ export async function enrich(stubs: FilmStub[], deps: EnrichDeps): Promise<Film[
         runtime: movie.runtime,
         director: movie.director,
         posterPath: movie.posterPath,
+        backdropPath: movie.backdropPath,
         synopsis: movie.synopsis,
         letterboxdUrl: `${LETTERBOXD_BASE}/film/${stub.slug}/`,
       };
